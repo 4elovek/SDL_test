@@ -1,62 +1,139 @@
 #include <SDL.h>
 #include <SDL_image.h>
+#include <SDL_ttf.h>
 #include <stdio.h>
-static int width = 800;
-static int height = 600;
-int Init_SDL(SDL_Window **w, SDL_Surface **surf);
-int Quit_SDL(SDL_Window *w);
-SDL_Surface* LoadSurface(char* path);
-SDL_Surface* OptimizeSurface(SDL_Surface *opt, SDL_Surface *formatter);
+
+static int SCR_FORCED_WIDTH = 1280;
+static int SCR_FORCED_HEIGHT = 720;
+
+SDL_Surface *LoadSurface(char* path);
+SDL_Surface *OptimizeSurface(SDL_Surface *opt, SDL_Surface *formatter);
+SDL_Texture *LoadTexture(char* path, SDL_Renderer *r);
+SDL_Texture *DrawText(SDL_Renderer *rend, TTF_Font *font, char *text, SDL_Color *color);
+
 int main(int argc, char* argv[])
 {
-	SDL_Window* wind = NULL;
-	SDL_Surface* surf= NULL;
-	if(Init_SDL(&wind, &surf)){
-		int quit = 0;
-		SDL_Event e;
-		SDL_Surface *img = OptimizeSurface(LoadSurface("shodan.jpg"), surf);
-		while(!quit){
-			SDL_FillRect(surf, NULL, SDL_MapRGB(surf->format, 0xff, 0x00, 0x00));
-			SDL_BlitSurface(img, NULL, surf, NULL);
-			SDL_UpdateWindowSurface(wind);
-			while(SDL_PollEvent(&e) != 0){
-					quit = (e.type == SDL_Quit);
+	//init
+	SDL_Window *wind = NULL;
+	SDL_Renderer *rend = NULL;
+	SDL_Texture *texture = NULL;
+	SDL_RendererFlip flip = SDL_FLIP_NONE;
+	TTF_Font *font = NULL;
+	SDL_Color fontColor = {255, 255, 255, 255};
+	SDL_Event e;
+	
+	if(SDL_Init(SDL_INIT_VIDEO) != 0){
+		printf("\nSDL error: %s", SDL_GetError());
+		return -1;
+	}
+	wind = SDL_CreateWindow("Main", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCR_FORCED_WIDTH, SCR_FORCED_HEIGHT, SDL_WINDOW_RESIZABLE);
+	if((rend = SDL_CreateRenderer(wind, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)) == NULL){
+			printf("\nError at creating renderer: %s", SDL_GetError());
+			return -1;
+	}
+	SDL_SetRenderDrawColor(rend, 0xff, 0x00, 0x0, 0x0);
+	int img_flags = IMG_INIT_JPG | IMG_INIT_PNG;
+	if(!(IMG_Init(img_flags)&img_flags)){
+		printf("\nError at IMG_Init: %s", IMG_GetError());
+		return -1;
+	}
+	if(TTF_Init() != 0){
+		printf("ttf initialization error: %s", TTF_GetError());
+		return -1;
+	}
+	if((font = TTF_OpenFont("font1.ttf", 14)) == NULL){
+		printf("Can't open fonts: %s", TTF_GetError());
+	}
+	SDL_Texture *text = DrawText(rend, font, "The quick brown fox jumps over the lazy dog.", &fontColor);
+	if(text == NULL){
+		printf("Can't draw text: %s", TTF_GetError());
+	}
+	if((texture = LoadTexture("shodan.jpg", rend)) == NULL){
+		printf("\nCan't load texture: %s", SDL_GetError());
+		return -1;
+	}
+	//end init
+	SDL_Rect rect = {.x = 0, .y = 0, .w = SCR_FORCED_WIDTH, .h = SCR_FORCED_HEIGHT};
+	SDL_Rect textRect = {.x = 0, .y = 0, .w = 0, .h = 0};
+	int w = 0;
+	int h = 0;
+	double angle = 0;
+	SDL_QueryTexture(texture, NULL, NULL, &w, &h);
+	SDL_QueryTexture(text, NULL, NULL, &(textRect.w), &(textRect.h));
+	int quit = 0;
+	while(!quit){
+		while(SDL_PollEvent(&e)){
+			quit = (e.type == SDL_QUIT);
+			if(e.type == SDL_KEYDOWN){
+				if(e.key.keysym.sym == SDLK_LEFT){
+					if((rect.x -= 10) < 0){
+						rect.x = 0;
+					}
+				}else if(e.key.keysym.sym == SDLK_RIGHT){
+					if((rect.x += 10) + rect.w > w){
+						rect.x = w - rect.w;
+					}
+				}
+				if(e.key.keysym.sym == SDLK_UP){
+					if((rect.y -= 10) < 0){
+						rect.y = 0;
+					}
+				}else if(e.key.keysym.sym == SDLK_DOWN){
+					if((rect.y += 10) + rect.h > h){
+						rect.y = h - rect.h;
+					}
+				}
+				if(e.key.keysym.sym == SDLK_a){
+					angle += 10;
+				}else if(e.key.keysym.sym == SDLK_d){
+					angle -= 10;
+				}
 			}
 		}
+		SDL_RenderClear(rend);
+		SDL_RenderCopyEx(rend, texture, &rect, NULL, angle, NULL, flip);
+		SDL_RenderCopyEx(rend, text, NULL, &textRect, angle, NULL, flip);
+		SDL_RenderPresent(rend);
 	}
-	SDL_Delay(2000);
-	Quit_SDL(&wind);
+	SDL_DestroyTexture(texture);
+	SDL_DestroyTexture(text);
+	SDL_DestroyRenderer(rend);
+	SDL_DestroyWindow(wind);
+	wind = NULL;
+	rend = NULL;
+	texture = NULL;
+	TTF_Quit();
+	IMG_Quit();
+	SDL_Quit();
 }
-SDL_Surface* LoadSurface(char* path){
-	SDL_Surface* s = IMG_Load(path);
+
+SDL_Surface *LoadSurface(char *path)
+{
+	SDL_Surface *s = IMG_Load(path);
 	if(s == NULL){
 		printf("Error loading %s: %s", path, IMG_GetError());
 	}
 	return s;
 }
-SDL_Surface* OptimizeSurface(SDL_Surface *opt, SDL_Surface *formatter){
-	SDL_Surface* ret = SDL_ConvertSurface(opt, formatter->format, NULL);
+
+SDL_Surface *OptimizeSurface(SDL_Surface *opt, SDL_Surface *formatter)
+{
+	SDL_Surface *ret = SDL_ConvertSurface(opt, formatter->format, NULL);
 	SDL_FreeSurface(opt);
 	return ret;
 }
-int Init_SDL(SDL_Window **w, SDL_Surface **surf){
-	if(SDL_Init(SDL_INIT_VIDEO) < 0){
-		printf("SDL error: %s", SDL_GetError());
-		return 0;
-	}
-	int img_flags = IMG_INIT_JPG||IMG_INIT_PNG;
-	if(!(IMG_Init(img_flags)&img_flags)){
-		printf("Error at IMG_Init: %s", IMG_GetError());
-	}
-	*w = SDL_CreateWindow("Main", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, SDL_WINDOW_SHOWN);
-	*surf = SDL_GetWindowSurface(*w);
-	return 1;
-}
 
-int Quit_SDL(SDL_Window *w){
-	SDL_DestroyWindow(w);
-	w = NULL;
-	IMG_Quit();
-	SDL_Quit();
-	return 0;
+SDL_Texture *LoadTexture(char* path, SDL_Renderer *r)
+{
+	SDL_Surface *s = LoadSurface(path);
+	SDL_Texture *t = SDL_CreateTextureFromSurface(r, s);
+	SDL_FreeSurface(s);
+	return t;
+}
+SDL_Texture *DrawText(SDL_Renderer *rend, TTF_Font *font, char *text, SDL_Color *color)
+{
+	SDL_Surface *surf = TTF_RenderText_Solid(font, text, *color);
+	SDL_Texture *texture = SDL_CreateTextureFromSurface(rend, surf);
+	SDL_FreeSurface(surf);
+	return texture;
 }
