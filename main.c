@@ -6,10 +6,10 @@
 static int SCR_FORCED_WIDTH = 1280;
 static int SCR_FORCED_HEIGHT = 720;
 
-SDL_Surface *LoadSurface(char* path);
-SDL_Surface *OptimizeSurface(SDL_Surface *opt, SDL_Surface *formatter);
-SDL_Texture *LoadTexture(char* path, SDL_Renderer *r);
-SDL_Texture *DrawText(SDL_Renderer *rend, TTF_Font *font, char *text, SDL_Color *color);
+SDL_Surface *load_surface(char* path);
+SDL_Surface *optimize_surface(SDL_Surface *opt, SDL_Surface *formatter);
+SDL_Texture *load_texture(char* path, SDL_Renderer *r);
+SDL_Texture *draw_text(SDL_Renderer *rend, TTF_Font *font, char *text, SDL_Color *color);
 
 int main(int argc, char* argv[])
 {
@@ -44,11 +44,11 @@ int main(int argc, char* argv[])
 	if((font = TTF_OpenFont("font1.ttf", 14)) == NULL){
 		printf("Can't open fonts: %s", TTF_GetError());
 	}
-	SDL_Texture *text = DrawText(rend, font, "The quick brown fox jumps over the lazy dog.", &fontColor);
+	SDL_Texture *text = draw_text(rend, font, "The quick brown fox jumps over the lazy dog.", &fontColor);
 	if(text == NULL){
 		printf("Can't draw text: %s", TTF_GetError());
 	}
-	if((texture = LoadTexture("shodan.jpg", rend)) == NULL){
+	if((texture = load_texture("shodan.jpg", rend)) == NULL){
 		printf("\nCan't load texture: %s", SDL_GetError());
 		return -1;
 	}
@@ -107,7 +107,7 @@ int main(int argc, char* argv[])
 	SDL_Quit();
 }
 
-SDL_Surface *LoadSurface(char *path)
+SDL_Surface *load_surface(char *path)
 {
 	SDL_Surface *s = IMG_Load(path);
 	if(s == NULL){
@@ -116,21 +116,21 @@ SDL_Surface *LoadSurface(char *path)
 	return s;
 }
 
-SDL_Surface *OptimizeSurface(SDL_Surface *opt, SDL_Surface *formatter)
+SDL_Surface *optimize_surface(SDL_Surface *opt, SDL_Surface *formatter)
 {
 	SDL_Surface *ret = SDL_ConvertSurface(opt, formatter->format, NULL);
 	SDL_FreeSurface(opt);
 	return ret;
 }
 
-SDL_Texture *LoadTexture(char* path, SDL_Renderer *r)
+SDL_Texture *load_texture(char* path, SDL_Renderer *r)
 {
-	SDL_Surface *s = LoadSurface(path);
+	SDL_Surface *s = load_surface(path);
 	SDL_Texture *t = SDL_CreateTextureFromSurface(r, s);
 	SDL_FreeSurface(s);
 	return t;
 }
-SDL_Texture *DrawText(SDL_Renderer *rend, TTF_Font *font, char *text, SDL_Color *color)
+SDL_Texture *draw_text(SDL_Renderer *rend, TTF_Font *font, char *text, SDL_Color *color)
 {
 	SDL_Surface *surf = TTF_RenderText_Solid(font, text, *color);
 	SDL_Texture *texture = SDL_CreateTextureFromSurface(rend, surf);
