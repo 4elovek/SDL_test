@@ -1,7 +1,8 @@
-#include <SDL.h>
-#include <SDL_image.h>
-#include <SDL_ttf.h>
+#include "SDL.h"
+#include "SDL_image.h"
+#include "SDL_ttf.h"
 #include <stdio.h>
+#include "game.h"
 
 static int SCR_FORCED_WIDTH = 1280;
 static int SCR_FORCED_HEIGHT = 720;
@@ -16,92 +17,94 @@ int main(int argc, char* argv[])
 	//init
 	SDL_Window *wind = NULL;
 	SDL_Renderer *rend = NULL;
-	SDL_Texture *texture = NULL;
+	SDL_Texture *circle = NULL;
 	SDL_RendererFlip flip = SDL_FLIP_NONE;
 	TTF_Font *font = NULL;
-	SDL_Color fontColor = {255, 255, 255, 255};
+	SDL_Color fontColor = { 255, 255, 255, 255 };
 	SDL_Event e;
-	
-	if(SDL_Init(SDL_INIT_VIDEO) != 0){
-		printf("\nSDL error: %s", SDL_GetError());
+
+	if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+		fprintf(stderr, "\nSDL error: %s", SDL_GetError());
 		return -1;
 	}
-	wind = SDL_CreateWindow("Main", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCR_FORCED_WIDTH, SCR_FORCED_HEIGHT, SDL_WINDOW_RESIZABLE);
-	if((rend = SDL_CreateRenderer(wind, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)) == NULL){
-			printf("\nError at creating renderer: %s", SDL_GetError());
-			return -1;
+	wind = SDL_CreateWindow("Main", SDL_WINDOWPOS_UNDEFINED,
+			SDL_WINDOWPOS_UNDEFINED, SCR_FORCED_WIDTH, SCR_FORCED_HEIGHT,
+			SDL_WINDOW_RESIZABLE);
+
+	if ((rend = SDL_CreateRenderer(wind, -1,
+			SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)) == NULL) {
+		fprintf(stderr, stderr, "\nError at creating renderer: %s",
+				SDL_GetError());
+		return -1;
 	}
-	SDL_SetRenderDrawColor(rend, 0xff, 0x00, 0x0, 0x0);
+	SDL_SetRenderDrawColor(rend, 0x00, 0x00, 0xff, 0x00);
+
 	int img_flags = IMG_INIT_JPG | IMG_INIT_PNG;
-	if(!(IMG_Init(img_flags)&img_flags)){
-		printf("\nError at IMG_Init: %s", IMG_GetError());
+	if (!(IMG_Init(img_flags) & img_flags)) {
+		fprintf(stderr, stderr, "\nError at IMG_Init: %s", IMG_GetError());
 		return -1;
 	}
-	if(TTF_Init() != 0){
-		printf("ttf initialization error: %s", TTF_GetError());
+
+	if (TTF_Init() != 0) {
+		fprintf(stderr, "ttf initialization error: %s", TTF_GetError());
 		return -1;
 	}
-	if((font = TTF_OpenFont("font1.ttf", 14)) == NULL){
-		printf("Can't open fonts: %s", TTF_GetError());
+	if ((font = TTF_OpenFont("fonts/font1.ttf", 14)) == NULL) {
+		fprintf(stderr, "Can't open fonts: %s", TTF_GetError());
 	}
-	SDL_Texture *text = draw_text(rend, font, "The quick brown fox jumps over the lazy dog.", &fontColor);
-	if(text == NULL){
-		printf("Can't draw text: %s", TTF_GetError());
+	SDL_Texture *text = draw_text(rend, font,
+			"The quick brown fox jumps over the lazy dog.", &fontColor);
+	if (text == NULL) {
+		fprintf(stderr, "Can't draw text: %s", TTF_GetError());
 	}
-	if((texture = load_texture("shodan.jpg", rend)) == NULL){
-		printf("\nCan't load texture: %s", SDL_GetError());
+
+	if ((circle = load_texture("images/circle.png", rend)) == NULL) {
+		fprintf(stderr, "\nCan't load texture: %s", SDL_GetError());
 		return -1;
 	}
-	//end init
 	SDL_Rect rect = {.x = 0, .y = 0, .w = SCR_FORCED_WIDTH, .h = SCR_FORCED_HEIGHT};
-	SDL_Rect textRect = {.x = 0, .y = 0, .w = 0, .h = 0};
-	int w = 0;
-	int h = 0;
-	double angle = 0;
-	SDL_QueryTexture(texture, NULL, NULL, &w, &h);
-	SDL_QueryTexture(text, NULL, NULL, &(textRect.w), &(textRect.h));
+	SDL_QueryTexture(text, NULL, NULL, &(rect.w), &(rect.h));
+	SDL_Rect circle_rect = { .x = 0, .y = 0, .w = 6, .h = 6 };
+	SDL_QueryTexture(circle, NULL, NULL, &(circle_rect.w), &(circle_rect.h));
+	//end init
+
+	//starting game
+	struct game_options go = { SCR_FORCED_WIDTH, SCR_FORCED_HEIGHT, 10, 0,
+			circle_rect.w / 2.0, 0, 0};
+	start_game(&go);
 	int quit = 0;
-	while(!quit){
+	while (!quit) {
 		while(SDL_PollEvent(&e)){
 			quit = (e.type == SDL_QUIT);
-			if(e.type == SDL_KEYDOWN){
-				if(e.key.keysym.sym == SDLK_LEFT){
-					if((rect.x -= 10) < 0){
-						rect.x = 0;
-					}
-				}else if(e.key.keysym.sym == SDLK_RIGHT){
-					if((rect.x += 10) + rect.w > w){
-						rect.x = w - rect.w;
-					}
-				}
-				if(e.key.keysym.sym == SDLK_UP){
-					if((rect.y -= 10) < 0){
-						rect.y = 0;
-					}
-				}else if(e.key.keysym.sym == SDLK_DOWN){
-					if((rect.y += 10) + rect.h > h){
-						rect.y = h - rect.h;
-					}
-				}
-				if(e.key.keysym.sym == SDLK_a){
-					angle += 10;
-				}else if(e.key.keysym.sym == SDLK_d){
-					angle -= 10;
-				}
+			if(e.type == SDL_MOUSEBUTTONDOWN){
+				shoot(e.button.x, e.button.y);
 			}
 		}
+		calculate_game(SDL_GetTicks());
 		SDL_RenderClear(rend);
-		SDL_RenderCopyEx(rend, texture, &rect, NULL, angle, NULL, flip);
-		SDL_RenderCopyEx(rend, text, NULL, &textRect, angle, NULL, flip);
+		for (int i = 0; i < go.max_circles; ++i) {
+			if (go.circles[i].active) {
+				circle_rect.w = go.circles[i].r * 2;
+				circle_rect.h = go.circles[i].r * 2;
+				circle_rect.x = go.circles[i].x - go.circles[i].r;
+				circle_rect.y = go.circles[i].y - go.circles[i].r;
+				SDL_RenderCopyEx(rend, circle, NULL, &circle_rect, 0, NULL,
+						flip);
+			}
+		}
+		// SDL_RenderCopyEx(rend, text, NULL, &textRect, 0, NULL, flip);
 		SDL_RenderPresent(rend);
 	}
-	SDL_DestroyTexture(texture);
+	//end game
+
+	//clearing
+	SDL_DestroyTexture(circle);
 	SDL_DestroyTexture(text);
 	SDL_DestroyRenderer(rend);
 	SDL_DestroyWindow(wind);
 	wind = NULL;
 	rend = NULL;
-	texture = NULL;
+	circle = NULL;
 	TTF_Quit();
 	IMG_Quit();
 	SDL_Quit();
@@ -110,8 +113,8 @@ int main(int argc, char* argv[])
 SDL_Surface *load_surface(char *path)
 {
 	SDL_Surface *s = IMG_Load(path);
-	if(s == NULL){
-		printf("Error loading %s: %s", path, IMG_GetError());
+	if (s == NULL) {
+		fprintf(stderr, "Error loading %s: %s", path, IMG_GetError());
 	}
 	return s;
 }
@@ -123,7 +126,7 @@ SDL_Surface *optimize_surface(SDL_Surface *opt, SDL_Surface *formatter)
 	return ret;
 }
 
-SDL_Texture *load_texture(char* path, SDL_Renderer *r)
+SDL_Texture *load_texture(char* path, SDL_Renderer *r) 
 {
 	SDL_Surface *s = load_surface(path);
 	SDL_Texture *t = SDL_CreateTextureFromSurface(r, s);
